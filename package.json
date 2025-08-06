@@ -4,7 +4,7 @@
   "description": "Backend for SwiftPost mail system using Express and Supabase",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node index.js"
   },
   "keywords": [
     "mail",
