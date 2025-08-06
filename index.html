@@ -1,131 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Joystick Game</title>
+  <title>Voucher Scanner</title>
+  <script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      touch-action: none;
-      background: #fbe0e6;
+    #manualInput {
+      display: none;
+      margin-top: 20px;
     }
-    canvas {
-      display: block;
-      background: white;
-    }
-    #joystick {
-      position: absolute;
-      bottom: 40px;
-      left: 40px;
-      width: 120px;
-      height: 120px;
-      background: rgba(255, 105, 180, 0.2);
-      border-radius: 50%;
-      touch-action: none;
-    }
-    #stick {
-      width: 60px;
-      height: 60px;
-      background: hotpink;
-      border-radius: 50%;
-      position: absolute;
-      top: 30px;
-      left: 30px;
-      transform: translate(0, 0);
-      transition: transform 0.05s linear;
+    input, button {
+      font-size: 16px;
+      padding: 8px;
+      margin-right: 8px;
     }
   </style>
 </head>
 <body>
+  <h2>Scan Voucher</h2>
+  <div id="scanner" style="width: 100%; max-width: 500px; height: 300px;"></div>
+  <p id="result">Waiting for scan...</p>
 
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="manualInput">
+    <p>Camera not available? Enter code manually:</p>
+    <input type="text" id="manualCode" placeholder="Enter voucher code">
+    <button onclick="manualCheck()">Submit</button>
+  </div>
 
-<div id="joystick">
-  <div id="stick"></div>
-</div>
+  <script>
+    // === YOUR SUPABASE INFO ===
+    const SUPABASE_URL = "https://mutgxqhlltbbjdphxtzj.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11dGd4cWhsbHRiYmpkcGh4dHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0OTg4OTYsImV4cCI6MjA3MDA3NDg5Nn0.MSLy2o4NtDmY1twswpaG-4zQZniy7lSESBR0RJgMLZ4";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-<script>
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
+    const resultElem = document.getElementById('result');
 
-  const player = {
-    x: 400,
-    y: 300,
-    radius: 20,
-    color: "hotpink",
-    speed: 3,
-    vx: 0,
-    vy: 0
-  };
+    async function checkVoucher(code) {
+      const { data, error } = await supabase
+        .from("vouchers")
+        .select("*")
+        .eq("voucher_code", code)
+        .single();
 
-  const joystick = document.getElementById("joystick");
-  const stick = document.getElementById("stick");
+      if (error || !data) {
+        resultElem.textContent = `❌ Invalid voucher: ${code}`;
+        return;
+      }
 
-  let dragging = false;
-  let startX = 0;
-  let startY = 0;
+      if (data.is_used) {
+        resultElem.textContent = `⚠️ Voucher already used: ${code}`;
+      } else {
+        await supabase
+          .from("vouchers")
+          .update({ is_used: true })
+          .eq("voucher_code", code);
 
-  joystick.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    dragging = true;
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-  });
+        resultElem.textContent = `✅ Voucher activated: ${code}`;
+      }
+    }
 
-  joystick.addEventListener("touchmove", (e) => {
-    if (!dragging) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
+    function manualCheck() {
+      const code = document.getElementById('manualCode').value.trim();
+      if (code) {
+        checkVoucher(code);
+      }
+    }
 
-    const maxDist = 40;
-    const dist = Math.min(Math.sqrt(dx * dx + dy * dy), maxDist);
-    const angle = Math.atan2(dy, dx);
+    function fallbackToManualInput() {
+      document.getElementById('scanner').style.display = 'none';
+      document.getElementById('manualInput').style.display = 'block';
+      resultElem.textContent = "Camera not available — please enter code manually.";
+    }
 
-    const offsetX = Math.cos(angle) * dist;
-    const offsetY = Math.sin(angle) * dist;
+    // Try initializing Quagga
+    Quagga.init({
+      inputStream: {
+        type: "LiveStream",
+        target: document.querySelector('#scanner'),
+        constraints: {
+          facingMode: "environment"
+        }
+      },
+      decoder: {
+        readers: ["code_128_reader", "ean_reader", "ean_8_reader"]
+      },
+      locate: true
+    }, function(err) {
+      if (err) {
+        console.error("Quagga init failed:", err);
+        fallbackToManualInput();
+        return;
+      }
 
-    stick.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+      Quagga.start();
+    });
 
-    player.vx = (offsetX / maxDist) * player.speed;
-    player.vy = (offsetY / maxDist) * player.speed;
-  });
-
-  joystick.addEventListener("touchend", () => {
-    dragging = false;
-    stick.style.transform = `translate(0px, 0px)`;
-    player.vx = 0;
-    player.vy = 0;
-  });
-
-  function update() {
-    player.x += player.vx;
-    player.y += player.vy;
-
-    // Boundary check
-    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
-    player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-    ctx.fillStyle = player.color;
-    ctx.fill();
-  }
-
-  function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-  }
-
-  gameLoop();
-</script>
-
+    let scanned = false;
+    Quagga.onDetected(function(data) {
+      if (scanned) return;
+      scanned = true;
+      const code = data.codeResult.code;
+      checkVoucher(code);
+      setTimeout(() => {
+        scanned = false;
+      }, 3000);
+    });
+  </script>
 </body>
 </html>
