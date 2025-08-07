@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SwiftPost Mail</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@supabase/supabase-js/dist/umd/supabase.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; background: #f9f9f9; }
+    input, textarea { width: 100%; padding: 8px; margin-bottom: 12px; box-sizing: border-box; }
+    button { padding: 10px 15px; margin-right: 10px; cursor: pointer; }
+    button:hover { opacity: 0.9; }
+    ul { list-style: none; padding-left: 0; }
+    li { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
+    small { color: #666; }
+    h2, h3 { text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/javascript">
+    const { useState, useEffect } = React;
+
+    // Replace these with your Supabase project's info
+    const SUPABASE_URL = 'https://mutgxqhlltbbjdphxtzj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11dGd4cWhsbHRiYmpkcGh4dHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0OTg4OTYsImV4cCI6MjA3MDA3NDg5Nn0.MSLy2o4NtDmY1twswpaG-4zQZniy7lSESBR0RJgMLZ4';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function App() {
+      const [session, setSession] = useState(null);
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [messages, setMessages] = useState([]);
+      const [inbox, setInbox] = useState(true);
+      const [recipient, setRecipient] = useState('');
+      const [subject, setSubject] = useState('');
+      const [body, setBody] = useState('');
+      const [loading, setLoading] = useState(false);
+
+      // Listen to auth changes
+      useEffect(() => {
+        const getSession = async () => {
+          const { data } = await supabase.auth.getSession();
+          setSession(data.session);
+          if (data.session) fetchMessages(inbox);
+        };
+        getSession();
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+          setSession(session);
+          if (session) fetchMessages(inbox);
+          else setMessages([]);
+        });
+
+        return () => {
+          listener.subscription.unsubscribe();
+        };
+      }, [inbox]);
+
+      async function signUp() {
+        if (!email || !password) {
+          alert('Please provide email and password');
+          return;
+        }
+        setLoading(true);
+        const { error } = await supabase.auth.signUp({ email, password });
+        setLoading(false);
+        if (error) alert(error.message);
+        else alert('Check your email for confirmation link.');
+      }
+
+      async function signIn() {
+        if (!email || !password) {
+          alert('Please provide email and password');
+          return;
+        }
+        setLoading(true);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        setLoading(false);
+        if (error) alert(error.message);
+      }
+
+      async function signOut() {
+        await supabase.auth.signOut();
+        setSession(null);
+        setMessages([]);
+      }
+
+      async function fetchMessages(isInbox) {
+        if (!session?.user) return;
+        setLoading(true);
+
+        const userId = session.user.id;
+        const query = isInbox
+          ? supabase
+              .from('messages')
+              .select('id, sender_id, recipient_id, subject, body, created_at')
+              .eq('recipient_id', userId)
+              .order('created_at', { ascending: false })
+          : supabase
+              .from('messages')
+              .select('id, sender_id, recipient_id, subject, body, created_at')
+              .eq('sender_id', userId)
+              .order('created_at', { ascending: false });
+
+        const { data, error } = await query;
+        setLoading(false);
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        setMessages(data);
+      }
+
+      async function sendMessage() {
+        if (!recipient || !subject || !body) {
+          alert('Please fill in all fields');
+          return;
+        }
+        if (!session?.user) {
+          alert('You must be logged in to send a message');
+          return;
+        }
+
+        setLoading(true);
+
+        const { error } = await supabase
+          .from('messages')
+          .insert([{ sender_id: session.user.id, recipient_id: recipient, subject, body }]);
+
+        setLoading(false);
+
+        if (error) {
+          alert(error.message);
+        } else {
+          alert('Message sent!');
+          setRecipient('');
+          setSubject('');
+          setBody('');
+          fetchMessages(inbox);
+        }
+      }
+
+      if (!session)
+        return React.createElement('div', { style: { maxWidth: 400, margin: 'auto' } },
+          React.createElement('h2', null, 'SwiftPost Login'),
+          React.createElement('input', {
+            type: 'email',
+            placeholder: 'Email',
+            value: email,
+            onChange: e => setEmail(e.target.value),
+            disabled: loading,
+          }),
+          React.createElement('input', {
+            type: 'password',
+            placeholder: 'Password',
+            value: password,
+            onChange: e => setPassword(e.target.value),
+            disabled: loading,
+          }),
+          React.createElement('div', null,
+            React.createElement('button', { onClick: signIn, disabled: loading }, loading ? 'Logging in...' : 'Login'),
+            React.createElement('button', { onClick: signUp, disabled: loading, style: { marginLeft: 10 } }, loading ? 'Signing up...' : 'Sign Up')
+          )
+        );
+
+      return React.createElement('div', null,
+        React.createElement('h2', null, 'SwiftPost'),
+        React.createElement('button', { onClick: signOut, style: { float: 'right' } }, 'Sign Out'),
+
+        React.createElement('div', { style: { marginTop: 20, textAlign: 'center' } },
+          React.createElement('button', {
+            onClick: () => { setInbox(true); fetchMessages(true); },
+            disabled: loading,
+            style: { fontWeight: inbox ? 'bold' : 'normal' }
+          }, 'Inbox'),
+          React.createElement('button', {
+            onClick: () => { setInbox(false); fetchMessages(false); },
+            disabled: loading,
+            style: { marginLeft: 10, fontWeight: !inbox ? 'bold' : 'normal' }
+          }, 'Sent')
+        ),
+
+        React.createElement('div', { style: { marginTop: 20 } },
+          React.createElement('h3', null, inbox ? 'Inbox Messages' : 'Sent Messages'),
+          loading && React.createElement('p', null, 'Loading messages...'),
+          !loading && messages.length === 0 && React.createElement('p', null, 'No messages'),
+          React.createElement('ul', null,
+            messages.map(msg => React.createElement('li', { key: msg.id },
+              React.createElement('b', null, 'Subject: '), msg.subject, React.createElement('br'),
+              React.createElement('b', null, inbox ? 'From: ' : 'To: '),
+              inbox ? msg.sender_id : msg.recipient_id, React.createElement('br'),
+              React.createElement('p', null, msg.body),
+              React.createElement('small', null, new Date(msg.created_at).toLocaleString())
+            ))
+          )
+        ),
+
+        React.createElement('div', { style: { marginTop: 40 } },
+          React.createElement('h3', null, 'Compose Message'),
+          React.createElement('input', {
+            placeholder: 'Recipient User ID',
+            value: recipient,
+            onChange: e => setRecipient(e.target.value),
+            disabled: loading,
+          }),
+          React.createElement('input', {
+            placeholder: 'Subject',
+            value: subject,
+            onChange: e => setSubject(e.target.value),
+            disabled: loading,
+          }),
+          React.createElement('textarea', {
+            placeholder: 'Message body',
+            value: body,
+            onChange: e => setBody(e.target.value),
+            rows: 5,
+            disabled: loading,
+          }),
+          React.createElement('button', { onClick: sendMessage, disabled: loading }, loading ? 'Sending...' : 'Send')
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
