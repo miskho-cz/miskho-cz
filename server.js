@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT;  // no fallback to 3000
 
 app.get('/', (req, res) => {
   res.send(`
@@ -42,8 +42,8 @@ app.get('/', (req, res) => {
 
     <script>
       window.env = {
-        SUPABASE_URL: "${process.env.SUPABASE_URL}",
-        SUPABASE_ANON_KEY: "${process.env.SUPABASE_ANON_KEY}"
+        SUPABASE_URL: ${JSON.stringify(process.env.SUPABASE_URL)},
+        SUPABASE_ANON_KEY: ${JSON.stringify(process.env.SUPABASE_ANON_KEY)}
       };
     </script>
     <script type="module" src="/app.js"></script>
@@ -55,5 +55,5 @@ app.get('/', (req, res) => {
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.listen(port, () => {
-  console.log(\`Server running at http://localhost:\${port}\`);
+  console.log(`Server running on port ${port}`);
 });
