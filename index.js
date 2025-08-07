@@ -1,14 +1,16 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve frontend index.html on root
 app.get('/', (req, res) => {
-  res.send('SwiftPost backend is up and running!');
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const supabaseUrl = process.env.SUPABASE_URL;
