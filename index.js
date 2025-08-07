@@ -18,7 +18,7 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Allowed email domains for signup
-const allowedDomains = ['tiktok.com', 'yourdomain.com']; // Customize this list
+const allowedDomains = ['tiktok.com', 'email.com']; // Customize this list
 
 // Middleware to verify JWT and get user info, and enforce email verification
 async function authMiddleware(req, res, next) {
@@ -126,7 +126,7 @@ app.post('/login', async (req, res) => {
   res.json({ session: data.session });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`SwiftPost backend running on port ${PORT}`);
 });
