@@ -147,7 +147,7 @@
   <script>
     const { useState, useEffect } = React;
 
-    const BACKEND_URL = 'http://localhost:3000';
+    const BACKEND_URL = 'http://localhost:10000';
 
     function AuthForm({ mode, onSubmit, loading }) {
       const [username, setUsername] = useState('');
@@ -183,7 +183,7 @@
             disabled: loading,
           },
             React.createElement('option', { value: 'tiktok.com' }, 'tiktok.com'),
-            React.createElement('option', { value: 'swiftpost.com' }, 'swiftpost.com'),
+            React.createElement('option', { value: 'email.com' }, 'email.com'),
           ),
 
           React.createElement('label', null, 'Password'),
