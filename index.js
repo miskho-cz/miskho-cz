@@ -17,7 +17,10 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Middleware to verify JWT and get user info
+// Allowed email domains for signup
+const allowedDomains = ['tiktok.com', 'yourdomain.com']; // Customize this list
+
+// Middleware to verify JWT and get user info, and enforce email verification
 async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token provided' });
@@ -25,17 +28,32 @@ async function authMiddleware(req, res, next) {
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return res.status(401).json({ error: 'Invalid token' });
 
+  if (!user.email_confirmed_at) {
+    return res.status(403).json({ error: 'Please verify your email to continue.' });
+  }
+
   req.user = user;
   next();
 }
 
-// Send a message
+// Send a message with recipient validation
 app.post('/send-message', authMiddleware, async (req, res) => {
   const { subject, body, recipient_id } = req.body;
   const sender_id = req.user.id;
 
   if (!subject || !body || !recipient_id) {
     return res.status(400).json({ error: 'Subject, body, and recipient_id are required.' });
+  }
+
+  // Verify recipient exists
+  const { data: recipient, error: recipientError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', recipient_id)
+    .single();
+
+  if (recipientError || !recipient) {
+    return res.status(400).json({ error: 'Recipient not found' });
   }
 
   const { data, error } = await supabase
@@ -74,9 +92,20 @@ app.get('/sent', authMiddleware, async (req, res) => {
   res.json(data);
 });
 
-// User signup
+// User signup with allowed domain check
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required.' });
+  }
+
+  // Validate email domain
+  const domain = email.split('@')[1];
+  if (!allowedDomains.includes(domain)) {
+    return res.status(400).json({ error: `Domain ${domain} is not allowed.` });
+  }
+
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) return res.status(400).json({ error: error.message });
@@ -86,6 +115,11 @@ app.post('/signup', async (req, res) => {
 // User login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required.' });
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) return res.status(400).json({ error: error.message });
